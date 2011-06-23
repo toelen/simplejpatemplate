@@ -11,6 +11,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.persistence.Column;
+import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
@@ -20,6 +21,8 @@ import javax.persistence.Table;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 
 /*
  */
@@ -51,22 +54,32 @@ public class JdbcJpaHelper {
 
 		QueryAndParams q = createInsertQuery(databaseName, entity);
 
-		int generatedrows = template.update(q.getQuery(), q.getParams());
-
 		Field insertableIdField = hasNonInsertableID(entity);
-		if (insertableIdField != null) {
-			String nr = template.queryForObject("select @@IDENTITY",
-					new HashMap<String, Object>(), String.class);
-
-			if (nr != null) {
+		final int generatedrows;
+		if(insertableIdField == null){
+			KeyHolder keyHolder = new GeneratedKeyHolder();
+			generatedrows = template.update(q.getQuery(), q.getParams(),keyHolder);
+			Number nr = keyHolder.getKey();
+			if(nr != null){
 				setEntityID(entity, nr, insertableIdField);
-			} else {
-				logger.log(
-						Level.FINE,
-						"Query  did not return a generated key: "
-								+ q.getQuery());
 			}
-		}
+		}else{
+			generatedrows = template.update(q.getQuery(), q.getParams());
+		} 
+
+//		if (insertableIdField != null) {
+//			String nr = template.queryForObject("select @@IDENTITY",
+//					new HashMap<String, Object>(), String.class);
+//
+//			if (nr != null) {
+//				setEntityID(entity, nr, insertableIdField);
+//			} else {
+//				logger.log(
+//						Level.FINE,
+//						"Query  did not return a generated key: "
+//								+ q.getQuery());
+//			}
+//		}
 		result += generatedrows;
 		long end = System.currentTimeMillis();
 		long duration = end - start;
@@ -86,15 +99,15 @@ public class JdbcJpaHelper {
 	 * @throws IllegalArgumentException
 	 * @throws IllegalAccessException
 	 */
-	public QueryAndParams createInsertQuery(String databaseName, Object entity)
+	private QueryAndParams createInsertQuery(String databaseName, Object entity)
 			throws IllegalArgumentException, IllegalAccessException {
 		if (entity == null) {
 			return null;
 		}
 
-		//Class<?> cl = entity.getClass();
+		// Class<?> cl = entity.getClass();
 		// List<Field> insertableFields = getInsertableFields(cl);
-		Map<String, Object> values = getInsertValues(entity);
+		Map<String, Object> values = getInsertParameters(entity);
 
 		String sql = createInsertQuery(databaseName, entity, values);
 
@@ -103,7 +116,7 @@ public class JdbcJpaHelper {
 		return new QueryAndParams(sql, params);
 	}
 
-	private String createInsertQuery(String databaseName, Object entity,
+	public String createInsertQuery(String databaseName, Object entity,
 			Map<String, Object> values) {
 
 		Table table = entity.getClass().getAnnotation(Table.class);
@@ -144,11 +157,25 @@ public class JdbcJpaHelper {
 		return sql;
 	}
 
-	public Map<String, Object> getInsertValues(Object entity)
+	/**
+	 * Creates a <code>Map</code> of all entity properties that can be inserted.
+	 * The key is the column name as in the <code>@Column</code> annotation
+	 * 
+	 * @param entity
+	 * @return
+	 * @throws IllegalArgumentException
+	 * @throws IllegalAccessException
+	 */
+	public Map<String, Object> getInsertParameters(Object entity)
 			throws IllegalArgumentException, IllegalAccessException {
 		if (entity == null) {
 			return null;
 		}
+		Entity entityAnnotation = entity.getClass().getAnnotation(Entity.class);
+		if (entityAnnotation == null) {
+			throw new IllegalArgumentException("@Entity annotation not present");
+		}
+
 		List<Field> insertableFields = getInsertableFields(entity.getClass());
 		return getValues(entity, insertableFields);
 	}
@@ -160,7 +187,7 @@ public class JdbcJpaHelper {
 
 		for (Field field : insertableFields) {
 			Column col = field.getAnnotation(Column.class);
-			//Id idAnnotation = field.getAnnotation(Id.class);
+			// Id idAnnotation = field.getAnnotation(Id.class);
 			OneToOne oneToOne = field.getAnnotation(OneToOne.class);
 			ManyToOne manyToOne = field.getAnnotation(ManyToOne.class);
 			JoinColumn join = field.getAnnotation(JoinColumn.class);
@@ -291,7 +318,7 @@ public class JdbcJpaHelper {
 	 * @throws IllegalArgumentException
 	 * @throws IllegalAccessException
 	 */
-	private void setEntityID(Object entity, String id, Field idField)
+	private void setEntityID(Object entity, Object id, Field idField)
 			throws IllegalArgumentException, IllegalAccessException {
 		if (entity == null) {
 			return;
@@ -299,12 +326,15 @@ public class JdbcJpaHelper {
 
 		if (idField != null) {
 			idField.setAccessible(true);
+			if(id instanceof Number){
+				idField.set(entity, id);
+			}
 			if (idField.getType() == UUID.class) {
-				idField.set(entity, UUID.fromString(id));
+				idField.set(entity, UUID.fromString(id.toString()));
 			} else if (idField.getType() == Integer.class) {
-				idField.set(entity, Integer.parseInt(id));
+				idField.set(entity, Integer.parseInt(id.toString()));
 			} else if (idField.getType() == Long.class) {
-				idField.set(entity, Long.parseLong(id));
+				idField.set(entity, Long.parseLong(id.toString()));
 			}
 		}
 	}

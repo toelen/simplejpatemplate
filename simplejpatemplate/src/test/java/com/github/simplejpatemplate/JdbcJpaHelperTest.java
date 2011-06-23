@@ -12,7 +12,7 @@ public class JdbcJpaHelperTest {
 		JdbcJpaHelper helper = new JdbcJpaHelper();
 		EntityParent parent = new EntityParent();
 		parent.setId(1);
-		Map<String, Object> values = helper.getInsertValues(parent);
+		Map<String, Object> values = helper.getInsertParameters(parent);
 		Assert.assertNotNull(values);
 
 		Assert.assertEquals(1, values.get("idCol"));
