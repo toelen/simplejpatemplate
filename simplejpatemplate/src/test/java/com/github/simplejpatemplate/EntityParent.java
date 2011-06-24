@@ -4,6 +4,8 @@ import javax.persistence.Basic;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 @Entity
@@ -16,6 +18,9 @@ public class EntityParent {
 	@Basic
 	@Column(name = "colone")
 	private String fieldOne;
+	
+	@OneToMany
+	private EntityChild child;
 
 	public Integer getId() {
 		return id;
@@ -31,5 +36,13 @@ public class EntityParent {
 
 	public void setFieldOne(String fieldOne) {
 		this.fieldOne = fieldOne;
+	}
+
+	public EntityChild getChild() {
+		return child;
+	}
+
+	public void setChild(EntityChild child) {
+		this.child = child;
 	}
 }

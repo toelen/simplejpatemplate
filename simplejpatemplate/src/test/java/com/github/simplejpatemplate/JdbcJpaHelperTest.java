@@ -5,6 +5,8 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.github.simplejpatemplate.util.JdbcJpaHelper;
+
 public class JdbcJpaHelperTest {
 	@Test
 	public void testInsertableValues() throws Exception {
@@ -35,6 +37,10 @@ public class JdbcJpaHelperTest {
 		JdbcJpaHelper helper = new JdbcJpaHelper();
 		EntityParent parent = new EntityParent();
 		parent.setId(1);
+		EntityChild child = new EntityChild();
+		parent.setChild(child);
+		child.setIdField("id");
+		child.setParent(parent);
 
 		Map<String, Object> values = helper.getInsertParameters(parent);
 		Assert.assertNotNull(values);
@@ -43,6 +49,15 @@ public class JdbcJpaHelperTest {
 		Assert.assertNotNull(insertQuery);
 		Assert.assertEquals(
 				"INSERT INTO catalog.schema.name ( idCol , colone  ) VALUES ( :idCol , :colone  )",
+				insertQuery);
+
+		values = helper.getInsertParameters(child);
+		Assert.assertNotNull(values);
+		Assert.assertNotNull("idField is null", values.get("idField"));
+		insertQuery = helper.createInsertQuery(null, child, values);
+		Assert.assertNotNull(insertQuery);
+		Assert.assertEquals(
+				"INSERT INTO child ( somecol , idField  ) VALUES ( :somecol , :idField  )",
 				insertQuery);
 	}
 }

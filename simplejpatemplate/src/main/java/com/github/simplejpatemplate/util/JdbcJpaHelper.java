@@ -1,4 +1,4 @@
-package com.github.simplejpatemplate;
+package com.github.simplejpatemplate.util;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -284,6 +284,8 @@ public class JdbcJpaHelper {
 			insertable = false;
 		} else if (col != null) {
 			insertable = col.insertable();
+		} else if (idAnnotation != null) {
+			insertable = true;
 		} else {
 			insertable = false;
 		}

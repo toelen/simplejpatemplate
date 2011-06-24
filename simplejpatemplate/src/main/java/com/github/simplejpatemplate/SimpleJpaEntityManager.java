@@ -14,12 +14,20 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 import com.github.simplejpatemplate.rowmapper.JpaRowMapper;
+import com.github.simplejpatemplate.util.JdbcJpaHelper;
 
-public class SimpleJpaTemplate implements EntityManager {
+/**
+ * A very simple <code>EntityManager</code> using a Spring
+ * <code>NamedParameterJdbcTemplate</code> for JDBC access
+ * 
+ * @author leen toelen
+ * 
+ */
+public class SimpleJpaEntityManager implements EntityManager {
 	private final NamedParameterJdbcTemplate template;
 	private final JdbcJpaHelper helper;
 
-	public SimpleJpaTemplate(NamedParameterJdbcTemplate template) {
+	public SimpleJpaEntityManager(NamedParameterJdbcTemplate template) {
 		this.template = template;
 		this.helper = new JdbcJpaHelper();
 	}

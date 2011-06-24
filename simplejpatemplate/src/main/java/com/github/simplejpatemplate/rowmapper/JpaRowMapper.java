@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.RowMapper;
 
 /**
  * A Spring <code>RowMapper</code> which uses the JPA annotations to map a
- * resultset to an object
+ * <code>ResultSet</code> to an object
  * 
  * @author toelen
  * @see RowMapper
