@@ -9,7 +9,7 @@ import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 @Entity
-@Table(catalog = "catalog", name = "name", schema = "schema")
+@Table(name = "tablename")
 public class EntityParent {
 	@Id
 	@Column(name="idCol")

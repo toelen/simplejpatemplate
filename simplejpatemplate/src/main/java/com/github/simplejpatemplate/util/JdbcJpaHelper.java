@@ -17,9 +17,20 @@ import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 /**
+ * Utility class for creating SQL queries using JPA annotations
  */
 public class JdbcJpaHelper {
-	public String createSelectQuery(Class<?> type, Object id,
+	/**
+	 * Creates a select query using the primaryKey in the where clause. A
+	 * parameter named :id should be provided when executing the query
+	 * 
+	 * @param type
+	 * @param primaryKey
+	 * @param databaseName
+	 * @return
+	 * @throws Exception
+	 */
+	public String createSelectQuery(Class<?> type, Object primaryKey,
 			String databaseName) throws Exception {
 		String tableName = getFullyQualifiedTableName(type, databaseName);
 
@@ -71,6 +82,12 @@ public class JdbcJpaHelper {
 		return builder.toString();
 	}
 
+	/**
+	 * Creates a column name according to the JPA spec
+	 * 
+	 * @param field
+	 * @return
+	 */
 	private String getColumnName(Field field) {
 		Column col = field.getAnnotation(Column.class);
 		if (col != null && col.name() != null) {
@@ -85,7 +102,8 @@ public class JdbcJpaHelper {
 	}
 
 	/**
-	 * returns the fully qualified table name using the @Table annotation
+	 * Returns the fully qualified table name (catalog.schema.table) using the
+	 * {@link Table} annotation
 	 * 
 	 * @param cl
 	 * @param databaseName
@@ -166,8 +184,8 @@ public class JdbcJpaHelper {
 	}
 
 	/**
-	 * Creates a <code>Map</code> of all entity properties that can be inserted.
-	 * The key is the column name as in the <code>@Column</code> annotation
+	 * Creates a {@link Map} of all entity properties that can be inserted. The
+	 * key is the column name as in the {@link Column} annotation
 	 * 
 	 * @param entity
 	 * @return

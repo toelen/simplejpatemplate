@@ -115,7 +115,6 @@ public class SimpleJpaEntityManager implements EntityManager {
 
 	public boolean contains(Object entity) {
 		throw new RuntimeException("Not implemented");
-
 	}
 
 	public Query createQuery(String qlString) {
