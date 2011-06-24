@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -18,108 +16,84 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
-
-/*
+/**
  */
 public class JdbcJpaHelper {
-	private Logger logger = Logger.getLogger(JdbcJpaHelper.class.getName());
+	public String createSelectQuery(Class<?> type, Object id,
+			String databaseName) throws Exception {
+		String tableName = getFullyQualifiedTableName(type, databaseName);
 
-	/**
-	 * Parses the JPA annotations on the entity, and executes an INSERT
-	 * statement. The generated row identifier is attached to the entity @Id
-	 * 
-	 * if the entity is an action, the inserts for its many to many relations
-	 * are also executed
-	 * 
-	 * @param template
-	 * @param entity
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
-	 */
-	public int persist(String databaseName,
-			NamedParameterJdbcTemplate template, Object entity)
-			throws IllegalArgumentException, IllegalAccessException {
-		if (entity == null) {
-			return 0;
+		Field idField = getIDField(type);
+		if (idField == null) {
+			throw new IllegalArgumentException(
+					"@Id field could not be resolved");
 		}
 
-		int result = 0;
+		String colName = getColumnName(idField);
+		if (colName == null || colName.equals("")) {
+			throw new IllegalArgumentException(
+					"Id column name could not be resolved");
+		}
 
-		long start = System.currentTimeMillis();
+		StringBuilder builder = new StringBuilder();
+		builder.append("SELECT * FROM ");
+		builder.append(tableName);
+		builder.append(" WHERE ");
+		builder.append(colName);
+		builder.append(" = :id");
 
-		QueryAndParams q = createInsertQuery(databaseName, entity);
+		return builder.toString();
+	}
 
-		Field insertableIdField = hasNonInsertableID(entity);
-		final int generatedrows;
-		if(insertableIdField == null){
-			KeyHolder keyHolder = new GeneratedKeyHolder();
-			generatedrows = template.update(q.getQuery(), q.getParams(),keyHolder);
-			Number nr = keyHolder.getKey();
-			if(nr != null){
-				setEntityID(entity, nr, insertableIdField);
-			}
-		}else{
-			generatedrows = template.update(q.getQuery(), q.getParams());
-		} 
+	public String createDeleteQuery(Class<?> type, Object id,
+			String databaseName) throws Exception {
+		String tableName = getFullyQualifiedTableName(type, databaseName);
 
-//		if (insertableIdField != null) {
-//			String nr = template.queryForObject("select @@IDENTITY",
-//					new HashMap<String, Object>(), String.class);
-//
-//			if (nr != null) {
-//				setEntityID(entity, nr, insertableIdField);
-//			} else {
-//				logger.log(
-//						Level.FINE,
-//						"Query  did not return a generated key: "
-//								+ q.getQuery());
-//			}
-//		}
-		result += generatedrows;
-		long end = System.currentTimeMillis();
-		long duration = end - start;
-		logger.log(Level.FINEST, duration + "ms: " + q.getQuery() + " {params}");
-		return result;
+		Field idField = getIDField(type);
+		if (idField == null) {
+			throw new IllegalArgumentException(
+					"@Id field could not be resolved");
+		}
+
+		String colName = getColumnName(idField);
+		if (colName == null || colName.equals("")) {
+			throw new IllegalArgumentException(
+					"Id column name could not be resolved");
+		}
+
+		StringBuilder builder = new StringBuilder();
+		builder.append("DELETE FROM ");
+		builder.append(tableName);
+		builder.append(" WHERE ");
+		builder.append(colName);
+		builder.append(" = :id");
+
+		return builder.toString();
+	}
+
+	private String getColumnName(Field field) {
+		Column col = field.getAnnotation(Column.class);
+		if (col != null && col.name() != null) {
+			return col.name();
+		}
+
+		JoinColumn join = field.getAnnotation(JoinColumn.class);
+		if (join != null && join.name() != null) {
+			return join.name();
+		}
+		return field.getName();
 	}
 
 	/**
-	 * Parses the JPA annotations on the entity, and executes an INSERT
-	 * statement. The generated row identifier is attached to the entity @Id
+	 * returns the fully qualified table name using the @Table annotation
 	 * 
-	 * if the entity is an action, the inserts for its many to many relations
-	 * are also executed
-	 * 
+	 * @param cl
 	 * @param databaseName
-	 * @param entity
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
+	 *            Overrides the @Table catalog when non-null
+	 * @return
 	 */
-	private QueryAndParams createInsertQuery(String databaseName, Object entity)
-			throws IllegalArgumentException, IllegalAccessException {
-		if (entity == null) {
-			return null;
-		}
-
-		// Class<?> cl = entity.getClass();
-		// List<Field> insertableFields = getInsertableFields(cl);
-		Map<String, Object> values = getInsertParameters(entity);
-
-		String sql = createInsertQuery(databaseName, entity, values);
-
-		// KeyHolder keyHolder = new GeneratedKeyHolder();
-		SqlParameterSource params = new MapSqlParameterSource(values);
-		return new QueryAndParams(sql, params);
-	}
-
-	public String createInsertQuery(String databaseName, Object entity,
-			Map<String, Object> values) {
-
-		Table table = entity.getClass().getAnnotation(Table.class);
+	private String getFullyQualifiedTableName(Class<?> cl, String databaseName) {
+		Table table = cl.getAnnotation(Table.class);
 		String tableName = null;
 		String tableSchema = null;
 		String tablecatalog = databaseName;
@@ -133,9 +107,43 @@ public class JdbcJpaHelper {
 			tablecatalog = table.catalog();
 		}
 
+		if (tableName == null || tableName.equals("")) {
+			throw new IllegalArgumentException(
+					"Table name could not be resolved from @Table");
+		}
+
 		StringBuilder builder = new StringBuilder();
-		builder.append("INSERT INTO " + tablecatalog + "." + tableSchema + "."
-				+ tableName + " ( ");
+
+		if (tablecatalog != null && tablecatalog.equals("") == false) {
+			builder.append(tablecatalog + ".");
+		}
+		if (tableSchema != null && tableSchema.equals("") == false) {
+			builder.append(tableSchema + ".");
+		}
+		builder.append(tableName);
+
+		return builder.toString();
+	}
+
+	/**
+	 * Creates an insert statement
+	 * 
+	 * @param databaseName
+	 *            Overrides the @Table catalog property
+	 * @param entity
+	 * @param values
+	 * @return
+	 */
+	public String createInsertQuery(String databaseName, Object entity,
+			Map<String, Object> values) {
+
+		String tableName = getFullyQualifiedTableName(entity.getClass(),
+				databaseName);
+
+		StringBuilder builder = new StringBuilder();
+		builder.append("INSERT INTO ");
+		builder.append(tableName);
+		builder.append(" ( ");
 
 		Set<String> keys = values.keySet();
 		for (String key : keys) {
@@ -186,58 +194,57 @@ public class JdbcJpaHelper {
 		Map<String, Object> values = new HashMap<String, Object>();
 
 		for (Field field : insertableFields) {
-			Column col = field.getAnnotation(Column.class);
-			// Id idAnnotation = field.getAnnotation(Id.class);
-			OneToOne oneToOne = field.getAnnotation(OneToOne.class);
-			ManyToOne manyToOne = field.getAnnotation(ManyToOne.class);
-			JoinColumn join = field.getAnnotation(JoinColumn.class);
 
-			// if (idAnnotation == null && col != null) {
-			final String colName;
-			if (col != null) {
-				colName = col.name();
-			} else if (join != null) {
-				colName = join.name();
-			} else {
+			final String colName = getColumnName(field);
+			if (colName == null) {
 				throw new IllegalArgumentException(
 						"Unable to define column name for entity " + entity);
 			}
 
-			// boolean nullable = col.nullable();
-			// boolean insertable = col.insertable();
-			field.setAccessible(true);
-			Object value = field.get(entity);
-
-			if (oneToOne != null || manyToOne != null || join != null) {
-				// This is a relation type
-				// Lookup the remote ID field
-				Object temp = getEntityID(value);
-				if (temp instanceof UUID) {
-					value = ((UUID) temp).toString();
-				} else {
-					value = temp;
-				}
-			} else if (value != null) {
-				if (field.getType() == UUID.class) {
-					value = ((UUID) value).toString();
-				} else if (field.getType().isEnum()) {
-					value = ((Enum) value).ordinal();
-				} else if (value instanceof Enum) {
-					value = ((Enum) value).ordinal();
-				} else if (field.getType() == byte[].class) {
-					// TODO
-				}
-			} else if (value == null) {
-				if (field.getType() == byte[].class) {
-					value = new byte[0];
-				} else if (field.getType() == UUID.class) {
-					value = null;
-				}
-			}
+			Object value = getColumnValue(entity, field);
 
 			values.put(colName, value);
 		}
 		return values;
+	}
+
+	private Object getColumnValue(Object entity, Field field)
+			throws IllegalAccessException {
+
+		field.setAccessible(true);
+		Object value = field.get(entity);
+
+		OneToOne oneToOne = field.getAnnotation(OneToOne.class);
+		ManyToOne manyToOne = field.getAnnotation(ManyToOne.class);
+		JoinColumn join = field.getAnnotation(JoinColumn.class);
+
+		if (oneToOne != null || manyToOne != null || join != null) {
+			// This is a relation type
+			// Lookup the remote ID field
+			Object temp = getEntityID(value);
+			if (temp instanceof UUID) {
+				value = ((UUID) temp).toString();
+			} else {
+				value = temp;
+			}
+		} else if (value != null) {
+			if (field.getType() == UUID.class) {
+				value = ((UUID) value).toString();
+			} else if (field.getType().isEnum()) {
+				value = ((Enum) value).ordinal();
+			} else if (value instanceof Enum) {
+				value = ((Enum) value).ordinal();
+			} else if (field.getType() == byte[].class) {
+				// TODO
+			}
+		} else if (value == null) {
+			if (field.getType() == byte[].class) {
+				value = new byte[0];
+			} else if (field.getType() == UUID.class) {
+				value = null;
+			}
+		}
+		return value;
 	}
 
 	private List<Field> getInsertableFields(Class<?> cl)
@@ -292,13 +299,13 @@ public class JdbcJpaHelper {
 	 * @throws IllegalArgumentException
 	 * @throws IllegalAccessException
 	 */
-	private Object getEntityID(Object entity) throws IllegalArgumentException,
+	public Object getEntityID(Object entity) throws IllegalArgumentException,
 			IllegalAccessException {
 		if (entity == null) {
 			return null;
 		}
 
-		Field field = getIDField(entity);
+		Field field = getIDField(entity.getClass());
 		if (field != null) {
 			field.setAccessible(true);
 			Object value = field.get(entity);
@@ -310,34 +317,34 @@ public class JdbcJpaHelper {
 		return null;
 	}
 
-	/**
-	 * Copies the given id to the JPA @Id annotated field
-	 * 
-	 * @param entity
-	 * @param id
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
-	 */
-	private void setEntityID(Object entity, Object id, Field idField)
-			throws IllegalArgumentException, IllegalAccessException {
-		if (entity == null) {
-			return;
-		}
-
-		if (idField != null) {
-			idField.setAccessible(true);
-			if(id instanceof Number){
-				idField.set(entity, id);
-			}
-			if (idField.getType() == UUID.class) {
-				idField.set(entity, UUID.fromString(id.toString()));
-			} else if (idField.getType() == Integer.class) {
-				idField.set(entity, Integer.parseInt(id.toString()));
-			} else if (idField.getType() == Long.class) {
-				idField.set(entity, Long.parseLong(id.toString()));
-			}
-		}
-	}
+	// /**
+	// * Copies the given id to the JPA @Id annotated field
+	// *
+	// * @param entity
+	// * @param id
+	// * @throws IllegalArgumentException
+	// * @throws IllegalAccessException
+	// */
+	// private void setEntityID(Object entity, Object id, Field idField)
+	// throws IllegalArgumentException, IllegalAccessException {
+	// if (entity == null) {
+	// return;
+	// }
+	//
+	// if (idField != null) {
+	// idField.setAccessible(true);
+	// if (id instanceof Number) {
+	// idField.set(entity, id);
+	// }
+	// if (idField.getType() == UUID.class) {
+	// idField.set(entity, UUID.fromString(id.toString()));
+	// } else if (idField.getType() == Integer.class) {
+	// idField.set(entity, Integer.parseInt(id.toString()));
+	// } else if (idField.getType() == Long.class) {
+	// idField.set(entity, Long.parseLong(id.toString()));
+	// }
+	// }
+	// }
 
 	/**
 	 * Gets the first field with an ID annotation
@@ -347,12 +354,12 @@ public class JdbcJpaHelper {
 	 * @throws IllegalArgumentException
 	 * @throws IllegalAccessException
 	 */
-	private Field getIDField(Object entity) throws IllegalArgumentException,
+	private Field getIDField(Class<?> cl) throws IllegalArgumentException,
 			IllegalAccessException {
-		if (entity == null) {
+		if (cl == null) {
 			return null;
 		}
-		Class<?> cl = entity.getClass();
+
 		Field[] fields = cl.getDeclaredFields();
 		for (int i = 0; i < fields.length; i++) {
 			Field field = fields[i];
